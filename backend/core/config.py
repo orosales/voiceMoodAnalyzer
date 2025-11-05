@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "mito_books"
     POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "123"
+    POSTGRES_PASSWORD: str = "changeme123"
 
     # OpenAI
     OPENAI_API_KEY: str

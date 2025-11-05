@@ -71,3 +71,27 @@ Thumbs.db
 # ML models cache
 .cache/
 .transformers/
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfvars
+terraform/.terraform.tfstate.lock.info
+*.tfplan
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+
+# Backup files
+*.bak
+*.backup
+
+CLAUDE.md
+*.md
+!README.md
+!DEPLOYMENT.md
+!docs/*.md

@@ -1,0 +1,29 @@
+# OCI Authentication - Get these from OCI Console
+# See: https://docs.oracle.com/en-us/iaas/Content/API/Concepts/apisigningkey.htm
+
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaa..."
+user_ocid        = "ocid1.user.oc1..aaaaaaaa..."
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "us-ashburn-1"  # Options: us-ashburn-1, us-phoenix-1, eu-frankfurt-1, etc.
+compartment_ocid = "ocid1.compartment.oc1..aaaaaaaa..."  # Use tenancy_ocid for root compartment
+
+# Instance Configuration (Free Tier Defaults)
+instance_display_name = "voice-mood-analyzer"
+instance_shape        = "VM.Standard.A1.Flex"  # ARM-based free tier
+instance_ocpus        = 4                      # Free tier allows up to 4 OCPUs
+instance_memory_in_gbs = 24                    # Free tier allows up to 24GB RAM
+
+# Boot volume size (Free tier allows up to 200GB total across all volumes)
+boot_volume_size_in_gbs = 100
+
+# SSH Configuration
+# Generate key pair: ssh-keygen -t rsa -b 4096 -f ~/.ssh/oci_voice_mood -C "voice-mood-oci"
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQD... your-email@example.com"
+
+# Network Configuration (defaults are usually fine)
+vcn_cidr_block    = "10.0.0.0/16"
+subnet_cidr_block = "10.0.1.0/24"
+
+# Application ports (SSH, HTTP, HTTPS)
+app_ports = [22, 80, 443]

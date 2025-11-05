@@ -1,0 +1,156 @@
+name: Deploy to Oracle Cloud
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Images"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: false
+        default: 'latest'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.OCI_SSH_PRIVATE_KEY }}" > ~/.ssh/oci_key
+          chmod 600 ~/.ssh/oci_key
+          ssh-keyscan -H ${{ secrets.OCI_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env file on server
+        run: |
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} << 'EOF'
+            cd /opt/voice-mood-analyzer
+            cat > .env << 'ENVEOF'
+          POSTGRES_DB=mito_books
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ENVIRONMENT=production
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          IMAGE_TAG=${{ github.event.inputs.image_tag || 'latest' }}
+          ENVEOF
+            chmod 600 .env
+          EOF
+
+      - name: Copy docker-compose files to server
+        run: |
+          scp -i ~/.ssh/oci_key docker-compose.yml ubuntu@${{ secrets.OCI_HOST }}:/opt/voice-mood-analyzer/
+          scp -i ~/.ssh/oci_key docker-compose.prod.yml ubuntu@${{ secrets.OCI_HOST }}:/opt/voice-mood-analyzer/
+
+      - name: Copy database init scripts
+        run: |
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} "mkdir -p /opt/voice-mood-analyzer/db/init"
+          scp -i ~/.ssh/oci_key db/init/*.sql ubuntu@${{ secrets.OCI_HOST }}:/opt/voice-mood-analyzer/db/init/
+
+      - name: Pull latest images
+        run: |
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} << 'EOF'
+            cd /opt/voice-mood-analyzer
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+          EOF
+
+      - name: Deploy application
+        run: |
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} << 'EOF'
+            cd /opt/voice-mood-analyzer
+
+            # Stop and remove old containers
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+            # Start new containers
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            # Wait for services to be healthy
+            echo "Waiting for services to start..."
+            sleep 30
+          EOF
+
+      - name: Health check
+        id: health_check
+        run: |
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} << 'EOF'
+            cd /opt/voice-mood-analyzer
+
+            # Check if containers are running
+            if ! docker compose ps | grep -q "Up"; then
+              echo "❌ Containers are not running!"
+              docker compose logs --tail=50
+              exit 1
+            fi
+
+            # Wait up to 2 minutes for backend to be ready
+            for i in {1..24}; do
+              if curl -f http://localhost:8000/ > /dev/null 2>&1; then
+                echo "✅ Backend health check passed"
+                break
+              fi
+              echo "Waiting for backend... ($i/24)"
+              sleep 5
+            done
+
+            # Final check
+            if ! curl -f http://localhost:8000/ > /dev/null 2>&1; then
+              echo "❌ Backend health check failed"
+              docker compose logs backend --tail=100
+              exit 1
+            fi
+
+            # Check frontend
+            if ! curl -f http://localhost/ > /dev/null 2>&1; then
+              echo "❌ Frontend health check failed"
+              docker compose logs frontend --tail=50
+              exit 1
+            fi
+
+            echo "✅ All health checks passed"
+          EOF
+
+      - name: Cleanup old images
+        if: success()
+        run: |
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} << 'EOF'
+            # Remove dangling images to save disk space
+            docker image prune -f
+            echo "✅ Cleaned up old images"
+          EOF
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "🚀 Deployment successful!"
+          echo "Application URL: http://${{ secrets.OCI_HOST }}"
+          echo "Backend API: http://${{ secrets.OCI_HOST }}:8000"
+          echo "Image tag: ${{ github.event.inputs.image_tag || 'latest' }}"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed! Attempting rollback..."
+          ssh -i ~/.ssh/oci_key ubuntu@${{ secrets.OCI_HOST }} << 'EOF'
+            cd /opt/voice-mood-analyzer
+
+            # Try to restart with previous images
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            echo "⚠️ Rollback attempted. Please check logs manually."
+          EOF
+
+      - name: Cleanup SSH
+        if: always()
+        run: |
+          rm -f ~/.ssh/oci_key

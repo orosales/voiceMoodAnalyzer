@@ -1,8 +1,6 @@
 -- Seed Fusion Matrix with emotion combinations
 -- This creates a comprehensive mapping of audio + text emotions to final moods
-
--- Clear existing data (for re-runs)
-TRUNCATE TABLE voice_matrix RESTART IDENTITY CASCADE;
+-- IDEMPOTENT: Safe to run multiple times (uses INSERT ON CONFLICT)
 
 -- Neutral Audio Combinations
 INSERT INTO voice_matrix (audio_emotion, text_emotion, final_mood, emoji, description) VALUES
@@ -82,7 +80,11 @@ INSERT INTO voice_matrix (audio_emotion, text_emotion, final_mood, emoji, descri
 ('angry', 'joy', 'Aggressively Positive', '😤', 'The speaker says positive words but with aggressive tone.'),
 ('disgust', 'joy', 'Sarcastic Joy', '😏', 'The speaker discusses positive things with a disgusted tone.'),
 ('fear', 'joy', 'Anxious Positivity', '😅', 'The speaker expresses joy but voice reveals underlying fear.'),
-('surprise', 'joy', 'Joyful Amazement', '😍', 'The speaker is surprised and delighted.');
+('surprise', 'joy', 'Joyful Amazement', '😍', 'The speaker is surprised and delighted.')
+ON CONFLICT (audio_emotion, text_emotion) DO UPDATE SET
+    final_mood = EXCLUDED.final_mood,
+    emoji = EXCLUDED.emoji,
+    description = EXCLUDED.description;
 
 -- Log completion
 DO $$

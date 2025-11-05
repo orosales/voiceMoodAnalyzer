@@ -1,6 +1,12 @@
-# VoiceMoodAnalyzer
+# VoiceMoodAnalyzer 🎙️😊
+
+[![Build Status](https://github.com/yourusername/voice-mood-analyzer/actions/workflows/build-and-push.yml/badge.svg)](https://github.com/yourusername/voice-mood-analyzer/actions)
+[![Deploy Status](https://github.com/yourusername/voice-mood-analyzer/actions/workflows/deploy-to-oci.yml/badge.svg)](https://github.com/yourusername/voice-mood-analyzer/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A production-ready, Dockerized voice mood analysis system that combines OpenAI Whisper for speech transcription with Hugging Face emotion detection models to determine the emotional state of speakers.
+
+**✨ Now with FREE Oracle Cloud deployment via automated CI/CD!**
 
 ## Features
 
@@ -58,7 +64,7 @@ A production-ready, Dockerized voice mood analysis system that combines OpenAI W
          ▼
 ┌─────────────────┐
 │   PostgreSQL    │  (voice_matrix, voice_analysis)
-│   (Port 5436)   │  [Existing on Host - NOT in Docker]
+│   (Port 5432)   │  [Docker Container - Auto-initialized]
 └─────────────────┘
 ```
 
@@ -92,10 +98,9 @@ A production-ready, Dockerized voice mood analysis system that combines OpenAI W
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- **PostgreSQL database** running on localhost:5436 (database: `mito_books`)
-- OpenAI API key (for Whisper transcription)
-- Minimum 4GB RAM (for running ML models)
-- 10GB free disk space (for Docker images and models)
+- OpenAI API key (for Whisper transcription) - [Get one here](https://platform.openai.com/api-keys)
+- Minimum 8GB RAM (for running ML models)
+- 15GB free disk space (for Docker images and ML models)
 
 ## Quick Start
 
@@ -107,52 +112,51 @@ cd voice-mood-analyzer
 
 ### 2. Configure Environment
 
-Edit the `.env` file and add your OpenAI API key:
+Create `.env` file from template:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and add your OpenAI API key:
 
 ```env
-# Database Configuration (already set to match your specs)
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DB=mito_books
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=123
+# Required: OpenAI API Key
+OPENAI_API_KEY=sk-proj-your-actual-key-here
 
-# OpenAI Configuration
-OPENAI_API_KEY=your_actual_openai_api_key_here
-
-# Application Configuration
-BACKEND_PORT=8000
-FRONTEND_PORT=80
-ENVIRONMENT=production
+# Optional: Change database password (recommended for production)
+POSTGRES_PASSWORD=changeme123
 ```
+
+See [`.env.example`](./.env.example) for all configuration options.
 
 ### 3. Build and Start Services
 
 ```bash
-# Build and start all containers
-docker-compose up --build
-
-# Or run in detached mode
+# Build and start all containers (PostgreSQL + Backend + Frontend)
 docker-compose up -d --build
 ```
 
 This will:
-- Build the FastAPI backend container (connects to your existing PostgreSQL)
+- Start PostgreSQL container and create database
+- Build the FastAPI backend container
 - Build the React frontend container
-- Download Hugging Face models (first run only, ~2GB)
+- Download Hugging Face ML models (~2GB, first run only)
+- Initialize database tables automatically
 
-**Note**: Ensure your PostgreSQL database has the required tables. Run the initialization scripts manually:
+**First run:** Model downloads take 10-15 minutes. Monitor progress:
 ```bash
-psql -h localhost -p 5436 -U postgres -d mito_books -f db/init/01-init-tables.sql
-psql -h localhost -p 5436 -U postgres -d mito_books -f db/init/02-seed-fusion-matrix.sql
+docker-compose logs -f backend
 ```
+
+Wait for: `"Application startup complete"`
 
 ### 4. Access the Application
 
 - **Frontend**: http://localhost
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
-- **PostgreSQL**: localhost:5436
+- **PostgreSQL**: localhost:5432 (containerized)
 
 ## Usage
 
@@ -238,66 +242,93 @@ Historical record of all voice analyses.
 | emoji | VARCHAR(10) | Mood emoji |
 | description | TEXT | Mood description |
 
-## Deploying to Azure VM
+## ☁️ Cloud Deployment (Oracle Cloud Free Tier - $0/month!)
 
-### 1. Provision Azure VM
+Deploy to Oracle Cloud Infrastructure completely **FREE** using automated CI/CD!
 
-```bash
-# Create Ubuntu 22.04 VM with at least:
-# - 4 vCPUs
-# - 8GB RAM
-# - 50GB SSD
-# - Open ports: 80, 443, 8000 (optional)
+### Why Oracle Cloud?
+
+- ✅ **4 ARM CPUs + 24GB RAM** - More powerful than this app needs
+- ✅ **100GB boot volume** - Plenty of space for ML models
+- ✅ **10TB bandwidth/month** - Generous data transfer
+- ✅ **$0/month forever** - No time limits on free tier
+- ✅ **Automated CI/CD** - Push to deploy via GitHub Actions
+
+### Quick Deployment Guide
+
+1. **[Set up Oracle Cloud Infrastructure](./docs/OCI_SETUP.md)** (~30 minutes)
+   - Create free Oracle Cloud account
+   - Generate API keys
+   - Deploy infrastructure with Terraform
+
+2. **[Configure CI/CD Pipeline](./docs/CICD.md)** (~20 minutes)
+   - Set up GitHub Actions secrets
+   - Configure Docker Hub
+   - Connect to OCI instance
+
+3. **Deploy** 🚀
+   ```bash
+   git push origin main
+   ```
+
+   GitHub Actions automatically:
+   - Builds multi-arch Docker images (ARM64 + AMD64)
+   - Pre-bakes ML models into images (~3GB)
+   - Pushes to Docker Hub
+   - Deploys to OCI instance
+   - Runs health checks
+   - Notifies you of completion
+
+### Architecture
+
+```
+GitHub → GitHub Actions → Docker Hub → Oracle Cloud (ARM64)
+                                          ├── Frontend (Nginx + React)
+                                          ├── Backend (FastAPI + ML Models)
+                                          └── PostgreSQL (Containerized)
 ```
 
-### 2. Install Docker
+**Total setup time:** ~1 hour
+**Ongoing cost:** $0/month (Free Tier)
+**Build time:** 30-40 minutes (first build with ML models)
+**Deploy time:** 10-15 minutes
+
+### Terraform Infrastructure
+
+The project includes complete Infrastructure as Code:
 
 ```bash
-# SSH into VM
-ssh azureuser@your-vm-ip
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Install Docker Compose
-sudo apt-get update
-sudo apt-get install docker-compose-plugin
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-newgrp docker
+cd terraform/
+terraform init
+terraform plan
+terraform apply
 ```
 
-### 3. Deploy Application
+Creates:
+- Virtual Cloud Network with public subnet
+- Compute instance (VM.Standard.A1.Flex)
+- Security lists (ports 22, 80, 443)
+- Reserved public IP
+- Auto-installs Docker & Docker Compose
 
-```bash
-# Clone repository
-git clone <your-repo-url>
-cd voice-mood-analyzer
+See [terraform/](./terraform/) for full configuration.
 
-# Configure .env with your OpenAI API key
-nano .env
+---
 
-# Start services
-docker-compose up -d --build
+## Alternative: Azure/AWS Deployment
 
-# Check logs
-docker-compose logs -f
-```
+For Azure or AWS deployment, follow similar steps:
 
-### 4. Configure Firewall (if needed)
+1. Provision VM (4 vCPUs, 8GB RAM minimum)
+2. Install Docker & Docker Compose
+3. Clone repository
+4. Configure `.env` with secrets
+5. Run `docker-compose up -d --build`
 
-```bash
-# Allow HTTP traffic
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
-```
-
-### 5. Access Application
-
-Visit: `http://your-vm-public-ip`
+Estimated costs:
+- **Azure B2ms:** ~$60/month or ~$0.42 for 5 hours
+- **Azure Spot:** ~$0.10-0.20 for 5 hours (with eviction risk)
+- **AWS t3.large:** ~$60/month or ~$0.42 for 5 hours
 
 ## Mobile Access
 

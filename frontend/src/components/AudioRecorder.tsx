@@ -1,16 +1,33 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface AudioRecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void;
+  onError?: (error: string) => void;
   disabled?: boolean;
 }
 
-const AudioRecorder: React.FC<AudioRecorderProps> = ({ onRecordingComplete, disabled = false }) => {
+const AudioRecorder: React.FC<AudioRecorderProps> = ({
+  onRecordingComplete,
+  onError,
+  disabled = false
+}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+
+  // Update document title when recording
+  useEffect(() => {
+    if (isRecording) {
+      const originalTitle = document.title;
+      document.title = '🔴 Recording... - VoiceMoodAnalyzer';
+
+      return () => {
+        document.title = originalTitle;
+      };
+    }
+  }, [isRecording]);
 
   const startRecording = async () => {
     try {
@@ -50,9 +67,20 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onRecordingComplete, disa
         setRecordingTime(prev => prev + 1);
       }, 1000);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error accessing microphone:', error);
-      alert('Unable to access microphone. Please grant permission and try again.');
+
+      let errorMessage = 'Unable to access microphone. ';
+
+      if (error.name === 'NotAllowedError') {
+        errorMessage += 'Please grant microphone permission in your browser settings and try again.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage += 'No microphone found. Please connect a microphone and try again.';
+      } else {
+        errorMessage += 'Please check your microphone settings and try again.';
+      }
+
+      onError?.(errorMessage);
     }
   };
 
@@ -75,43 +103,53 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onRecordingComplete, disa
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-semibold mb-4 text-gray-800">Record Audio</h2>
+    <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow duration-200">
+      <h3 className="text-xl font-semibold mb-4 text-gray-800">Record Audio</h3>
 
       <div className="flex flex-col items-center space-y-4">
         {isRecording && (
-          <div className="text-2xl font-mono text-red-600">
-            {formatTime(recordingTime)}
+          <div
+            className="text-3xl font-bold font-mono text-red-600 bg-red-50 px-6 py-3 rounded-lg border-2 border-red-200"
+            role="timer"
+            aria-live="off"
+            aria-atomic="true"
+            aria-label={`Recording time: ${formatTime(recordingTime)}`}
+          >
+            <span aria-hidden="true" className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></span>
+              {formatTime(recordingTime)}
+            </span>
           </div>
         )}
 
         <button
           onClick={isRecording ? stopRecording : startRecording}
           disabled={disabled}
+          aria-label={isRecording ? 'Stop recording audio' : 'Start recording audio'}
           className={`
-            px-8 py-4 rounded-full font-semibold text-white
+            px-8 py-4 rounded-full font-semibold text-white min-h-[44px] min-w-[200px]
             transform transition-all duration-200
             ${isRecording
-              ? 'bg-red-500 hover:bg-red-600 active:scale-95'
-              : 'bg-blue-500 hover:bg-blue-600 active:scale-95'
+              ? 'bg-red-600 hover:bg-red-700 shadow-lg shadow-red-500/50 active:scale-95'
+              : 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/50 active:scale-95'
             }
-            ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-lg'}
+            ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:shadow-blue-600/50'}
           `}
         >
           {isRecording ? (
             <span className="flex items-center">
-              <span className="animate-pulse mr-2">⏹</span>
+              <span className="animate-pulse mr-2" aria-hidden="true">⏹</span>
               Stop Recording
             </span>
           ) : (
             <span className="flex items-center">
-              <span className="mr-2">🎤</span>
+              <span className="mr-2" aria-hidden="true">🎤</span>
               Start Recording
             </span>
           )}
         </button>
 
-        <p className="text-sm text-gray-600 text-center">
+        <p className="text-sm text-gray-900 text-center font-medium">
           {isRecording
             ? 'Recording in progress... Click "Stop Recording" when done'
             : 'Click to start recording your voice'

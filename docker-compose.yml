@@ -1,6 +1,29 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: voice-mood-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mito_books}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-mito_books}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voice-mood-network
+
   # FastAPI Backend
   backend:
     build:
@@ -9,19 +32,26 @@ services:
     container_name: voice-mood-backend
     restart: unless-stopped
     environment:
-      POSTGRES_HOST: host.docker.internal  # Connect to host PostgreSQL
-      POSTGRES_PORT: 5436
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-mito_books}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme123}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ENVIRONMENT: ${ENVIRONMENT:-production}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  # Allow container to access host
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - voice-mood-network
 
@@ -36,9 +66,18 @@ services:
       - backend
     ports:
       - "80:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - voice-mood-network
 
 networks:
   voice-mood-network:
     driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
