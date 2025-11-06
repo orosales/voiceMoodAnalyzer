@@ -44,6 +44,7 @@ function App() {
         ? audioData
         : new File([audioData], 'recording.webm', { type: audioData.type });
 
+      // Send audio to backend for analysis
       const analysisResult = await analyzeVoice(audioFile);
       setResult(analysisResult);
     } catch (err: any) {
@@ -72,8 +73,19 @@ function App() {
               VoiceMoodAnalyzer
             </h1>
             <p className="text-gray-900 text-lg">
-              AI-powered voice emotion detection using Whisper & Hugging Face
+              AI-powered voice emotion detection using Whisper.cpp & Hugging Face
             </p>
+            <div className="mt-4 bg-blue-50 border-2 border-blue-400 rounded-lg p-3 text-sm">
+              <p className="text-blue-900 font-medium">
+                ℹ️ Audio emotion analysis: Based on recording duration
+              </p>
+              <p className="text-blue-800 text-xs mt-1">
+                • Under 15 seconds: Audio emotion + Text emotion analysis
+              </p>
+              <p className="text-blue-800 text-xs">
+                • 15 seconds or longer: Text emotion analysis only
+              </p>
+            </div>
           </header>
 
           <main id="main-content">
@@ -102,7 +114,8 @@ function App() {
               {isAnalyzing && (
                 <section aria-labelledby="loading-heading">
                   <h3 id="loading-heading" className="sr-only">Analysis in Progress</h3>
-                  <LoadingSpinner message="Analyzing your voice..." />
+                  <LoadingSpinner message="Analyzing your voice..."
+                  />
                 </section>
               )}
 
@@ -110,7 +123,7 @@ function App() {
                 <section aria-labelledby="results-heading">
                   <h3 id="results-heading" className="sr-only">Analysis Results</h3>
                   <MoodResult result={result} />
-                  <div className="text-center">
+                  <div className="text-center mt-6">
                     <button
                       onClick={handleReset}
                       className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-lg shadow-purple-500/50 transition-all duration-200 active:scale-95 hover:shadow-xl hover:shadow-purple-600/50 min-h-[44px]"
@@ -159,10 +172,10 @@ function App() {
           <footer className="mt-12 text-center text-sm">
             <div className="bg-white/60 backdrop-blur-sm rounded-lg p-4 shadow-sm inline-block">
               <p className="text-gray-900 font-medium">
-                Powered by OpenAI Whisper & Hugging Face Transformers
+                Powered by Whisper.cpp (local) & Hugging Face Transformers
               </p>
-              <p className="mt-2 text-gray-800">
-                Works on desktop and mobile devices
+              <p className="mt-1 text-gray-700 text-xs">
+                Fast local transcription • Works on desktop and mobile devices
               </p>
             </div>
           </footer>

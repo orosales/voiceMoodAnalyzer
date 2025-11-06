@@ -5,14 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 VoiceMoodAnalyzer is a multi-stage AI pipeline that analyzes emotional state from voice recordings by combining three signals:
-1. Audio transcription (OpenAI Whisper API - cloud)
+1. Audio transcription (Whisper.cpp - local, small model ~466MB)
+   - No internet required for transcription
+   - 6x realtime speed, excellent accuracy
 2. Audio emotion detection (Wav2Vec2 model - local, 97.5% accuracy)
    - Model: r-f/wav2vec-english-speech-emotion-recognition
    - 7 emotions: angry, disgust, fear, happy, neutral, sad, surprise
 3. Text sentiment analysis (DistilRoBERTa model - local)
 4. Emotion fusion via a database-driven matrix lookup
 
-The system is fully containerized with Docker and designed for Azure VM deployment with mobile-friendly web access.
+The system is fully containerized with Docker and designed for Azure VM deployment with mobile-friendly web access. All AI models run locally with no external API dependencies.
 
 ## Development Commands
 
@@ -104,8 +106,9 @@ The analysis pipeline in `backend/app.py` follows this exact sequence:
    - Validate file size (<25MB) and format (.wav, .mp3, .m4a, .ogg, .flac, .webm)
    - Save to temporary file
 
-2. **Whisper Transcription** (`services/whisper_service.py`)
-   - Send audio to OpenAI Whisper API
+2. **Whisper Transcription** (`services/whisper_cpp_service.py`)
+   - Local transcription using whisper.cpp (small model)
+   - No internet required, 6x realtime speed
    - Returns: `transcribed_text: str`
 
 3. **Audio Emotion Detection** (`services/audio_emotion.py`)
@@ -131,14 +134,17 @@ The analysis pipeline in `backend/app.py` follows this exact sequence:
 ### ML Model Lifecycle
 
 **Singleton Pattern for Models** (important for memory efficiency):
+- `get_whisper_service()` in `whisper_cpp_service.py` - loads Whisper.cpp once, caches globally (lazy loaded)
 - `get_audio_emotion_service()` in `audio_emotion.py` - loads Wav2Vec2 once, caches globally
 - `get_text_emotion_service()` in `text_emotion.py` - loads DistilRoBERTa once, caches globally
-- Models preload on app startup via `@app.on_event("startup")` in `app.py:41-47`
+- Hugging Face models preload on app startup via `@app.on_event("startup")` in `app.py:41-48`
+- Whisper.cpp model loads on first transcription request (lazy loading)
 
 **First Run Behavior**:
-- Hugging Face models download to Docker container (~2GB total)
-- Takes 10-15 minutes on first startup
-- Subsequent starts are fast (<30 seconds)
+- Hugging Face models download to Docker container (~2GB)
+- Whisper.cpp small model downloads on first use (~466MB)
+- Total model size: ~2.5GB
+- Initial build takes 10-15 minutes, subsequent starts <30 seconds
 
 ### Database Schema Details
 
@@ -155,14 +161,14 @@ The analysis pipeline in `backend/app.py` follows this exact sequence:
 ### Configuration System
 
 **Environment Variables** (`.env` → `backend/core/config.py`):
-- `OPENAI_API_KEY` - **Required** for Whisper API
 - `POSTGRES_*` - Database connection (default: localhost:5436, user: postgres, pass: 123, db: mito_books)
 - Config accessed via `get_settings()` singleton (cached with `@lru_cache`)
+- **Note**: OPENAI_API_KEY is NO LONGER REQUIRED (using local whisper.cpp)
 
 **Pydantic Settings**:
 - `core/config.py` validates all environment variables on startup
-- Raises error if OPENAI_API_KEY missing
 - Generates `database_url` property for SQLAlchemy
+- No external API keys needed - all models run locally
 
 ## Key Implementation Details
 
@@ -293,7 +299,8 @@ psql -h localhost -p 5436 -U postgres -d mito_books -f db/init/02-seed-fusion-ma
 - Minimum: 4 vCPUs, 8GB RAM, 50GB disk
 - Recommended: Standard_D4s_v3 or larger
 - Open ports: 80 (HTTP), 443 (HTTPS), 22 (SSH)
-- First startup downloads ML models (~2GB) - factor into deployment time
+- First startup downloads ML models (~2.5GB) - factor into deployment time
+- **No internet required after initial setup** - all models run locally
 
 ### Production Checklist
 1. Change `POSTGRES_PASSWORD` in `.env`
@@ -305,15 +312,16 @@ psql -h localhost -p 5436 -U postgres -d mito_books -f db/init/02-seed-fusion-ma
 7. Set up database backups (pg_dump cron job)
 
 ### Environment-Specific Behavior
-- Models load on startup - increases container start time
-- Whisper API requires internet connection
+- Hugging Face models load on startup - increases container start time
+- Whisper.cpp model loads on first transcription (lazy loading)
+- No internet connection required for inference - all models run locally
 - PostgreSQL init scripts run only on first volume creation
 - Frontend build happens in Dockerfile (not at runtime)
 
 ## Common Troubleshooting
 
 ### "Models downloading slowly"
-- First run downloads ~2GB from Hugging Face
+- First run downloads ~2.5GB (Hugging Face models + whisper.cpp)
 - Check: `docker-compose logs -f backend`
 - Wait 10-15 minutes for completion
 
@@ -326,19 +334,21 @@ psql -h localhost -p 5436 -U postgres -d mito_books -f db/init/02-seed-fusion-ma
 - Verify `allow_origins` in `backend/app.py` includes frontend origin
 - Check nginx proxy is forwarding headers correctly
 
-### "OpenAI API errors"
-- Verify `OPENAI_API_KEY` in `.env` is valid
-- Check API quota at https://platform.openai.com/usage
-- Whisper API rate limits: 50 requests/minute (default)
+### "Transcription errors"
+- Whisper.cpp model downloads automatically on first use (~466MB)
+- Check logs: `docker-compose logs -f backend`
+- Models stored in `/app/.cache/whispercpp_models` (Docker) or `~/.cache/whispercpp_models` (local)
+- No API key needed - all processing is local
 
 ## File Locations Reference
 
-- **API Routes**: `backend/app.py` (lines 50-160)
-- **Model Loading**: `backend/app.py` (lines 41-47 startup event)
+- **API Routes**: `backend/app.py` (lines 50-180)
+- **Model Loading**: `backend/app.py` (lines 41-48 startup event)
+- **Whisper Transcription**: `backend/services/whisper_cpp_service.py` (local, no API)
 - **Fusion Logic**: `backend/services/fusion_service.py:10-68`
 - **Database Models**: `backend/models/*.py`
 - **DB Init Scripts**: `db/init/*.sql` (executed in alphabetical order)
 - **Frontend API Client**: `frontend/src/services/api.ts`
 - **Main React App**: `frontend/src/App.tsx`
 - **Docker Orchestration**: `docker-compose.yml`
-- **Environment Config**: `.env` + `backend/core/config.py`
+- **Environment Config**: `.env` + `backend/core/config.py` (no API key required)

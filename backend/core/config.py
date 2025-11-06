@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "changeme123"
 
-    # OpenAI
-    OPENAI_API_KEY: str
-
     # Application
     BACKEND_PORT: int = 8000
     FRONTEND_PORT: int = 80  # Frontend port (used in .env but not by backend)
