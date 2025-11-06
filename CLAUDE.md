@@ -112,6 +112,8 @@ The analysis pipeline in `backend/app.py` follows this exact sequence:
    - Returns: `transcribed_text: str`
 
 3. **Audio Emotion Detection** (`services/audio_emotion.py`)
+   - **Duration-based processing**: Only runs for recordings ≤15 seconds
+   - For recordings >15 seconds: Skipped (defaults to "neutral" with 0.0 confidence) to save processing time (~15-20s per analysis)
    - Load audio, resample to 16kHz mono
    - Run through Wav2Vec2 model (`r-f/wav2vec-english-speech-emotion-recognition`)
    - **97.5% accuracy** - Fine-tuned on 4,720 samples from SAVEE, RAVDESS, and TESS datasets
@@ -178,6 +180,10 @@ The analysis pipeline in `backend/app.py` follows this exact sequence:
 - **Model**: `r-f/wav2vec-english-speech-emotion-recognition` (Wav2Vec2 architecture)
 - **Accuracy**: 97.5% on evaluation set
 - **Training**: Fine-tuned on 4,720 samples from SAVEE, RAVDESS, and TESS datasets
+- **Duration Threshold**: Only runs for recordings ≤15 seconds
+  - Recordings >15 seconds: Audio emotion skipped, defaults to "neutral" (confidence: 0.0)
+  - Reason: Performance optimization (audio emotion detection takes ~15-20s for long files)
+  - Text emotion analysis still runs for all recordings regardless of length
 - Requires exactly 16kHz mono audio for Wav2Vec2
 - Automatic resampling: `torchaudio.transforms.Resample(orig_sr, 16000)`
 - Stereo → mono: `torch.mean(waveform, dim=0, keepdim=True)`

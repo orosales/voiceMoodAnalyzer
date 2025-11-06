@@ -10,11 +10,12 @@ A production-ready, Dockerized voice mood analysis system that combines OpenAI W
 
 ## Features
 
-- **Speech Transcription**: OpenAI Whisper API for accurate speech-to-text conversion
+- **Speech Transcription**: Local Whisper.cpp (tiny model) for accurate speech-to-text conversion - no API key required
 - **Audio Emotion Detection**: High-accuracy Wav2Vec2 model (97.5% accuracy) for detecting emotion from voice tone
   - Model: `r-f/wav2vec-english-speech-emotion-recognition`
   - 7 emotions: angry, disgust, fear, happy, neutral, sad, surprise
-- **Text Emotion Analysis**: DistilRoBERTa model for analyzing sentiment from transcribed text
+  - **Only runs for recordings ≤15 seconds** (performance optimization for longer files)
+- **Text Emotion Analysis**: DistilRoBERTa model for analyzing sentiment from transcribed text (runs for all recordings)
 - **Emotion Fusion**: Advanced fusion matrix combining audio and text emotions for accurate mood detection
 - **Mobile-Friendly UI**: Responsive React interface with audio recording and file upload
 - **Real-time Analysis**: Fast processing pipeline with live results
@@ -41,14 +42,15 @@ A production-ready, Dockerized voice mood analysis system that combines OpenAI W
 │   (Port 8000)   │  [Docker Container]
 │                 │
 │  ┌───────────┐  │
-│  │  Whisper  │  │  → OpenAI Cloud API
-│  │  Service  │  │
+│  │  Whisper  │  │  → Local whisper.cpp (tiny model)
+│  │  Service  │  │     No API key required
 │  └───────────┘  │
 │                 │
 │  ┌───────────┐  │
 │  │   Audio   │  │  → Wav2Vec2 (local, 97.5% accuracy)
-│  │  Emotion  │  │     7 emotions: angry, disgust, fear,
-│  └───────────┘  │     happy, neutral, sad, surprise
+│  │  Emotion  │  │     Only for recordings ≤15 seconds
+│  └───────────┘  │     7 emotions: angry, disgust, fear,
+│                 │     happy, neutral, sad, surprise
 │                 │
 │  ┌───────────┐  │
 │  │   Text    │  │  → DistilRoBERTa (local)
@@ -72,11 +74,12 @@ A production-ready, Dockerized voice mood analysis system that combines OpenAI W
 
 ### Backend
 - **FastAPI**: Modern async Python web framework
-- **OpenAI Whisper API**: Cloud-based speech recognition
+- **Whisper.cpp**: Local speech recognition (tiny model, ~466MB, no API key required)
 - **Hugging Face Transformers**:
   - **Audio Emotion**: `r-f/wav2vec-english-speech-emotion-recognition` (97.5% accuracy)
     - Fine-tuned Wav2Vec2 model trained on 4,720 samples (SAVEE, RAVDESS, TESS datasets)
     - Detects 7 emotions: angry, disgust, fear, happy, neutral, sad, surprise
+    - **Performance optimization**: Only runs for recordings ≤15 seconds (saves ~15-20s for longer files)
   - **Text Emotion**: `j-hartmann/emotion-english-distilroberta-base`
     - Detects 7 emotions: anger, disgust, fear, joy, neutral, sadness, surprise
 - **PostgreSQL**: Relational database with SQLAlchemy ORM
@@ -98,7 +101,7 @@ A production-ready, Dockerized voice mood analysis system that combines OpenAI W
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- OpenAI API key (for Whisper transcription) - [Get one here](https://platform.openai.com/api-keys)
+- ~~OpenAI API key~~ **NO LONGER REQUIRED** - using local whisper.cpp
 - Minimum 8GB RAM (for running ML models)
 - 15GB free disk space (for Docker images and ML models)
 
@@ -112,21 +115,20 @@ cd voice-mood-analyzer
 
 ### 2. Configure Environment
 
-Create `.env` file from template:
+Create `.env` file from template (optional - defaults work out of the box):
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your OpenAI API key:
+Edit `.env` to customize database password (optional):
 
 ```env
-# Required: OpenAI API Key
-OPENAI_API_KEY=sk-proj-your-actual-key-here
-
 # Optional: Change database password (recommended for production)
 POSTGRES_PASSWORD=changeme123
 ```
+
+**Note**: No API keys required - all models run locally!
 
 See [`.env.example`](./.env.example) for all configuration options.
 
@@ -177,8 +179,8 @@ Wait for: `"Application startup complete"`
 4. View the results:
    - Final mood with emoji
    - Transcribed text
-   - Audio emotion + confidence
-   - Text emotion + confidence
+   - Audio emotion + confidence (only for recordings ≤15 seconds)
+   - Text emotion + confidence (always analyzed)
 
 ### API Endpoints
 
@@ -380,8 +382,8 @@ voice-mood-analyzer/
 │   │   ├── voice_matrix.py    # Fusion matrix ORM model
 │   │   └── voice_analysis.py  # Analysis history ORM model
 │   ├── services/
-│   │   ├── whisper_service.py # OpenAI Whisper integration
-│   │   ├── audio_emotion.py   # HuBERT emotion detection
+│   │   ├── whisper_local_service.py # Local whisper.cpp integration
+│   │   ├── audio_emotion.py   # Wav2Vec2 emotion detection (≤15s only)
 │   │   ├── text_emotion.py    # DistilRoBERTa sentiment
 │   │   └── fusion_service.py  # Emotion fusion logic
 │   ├── requirements.txt
@@ -457,8 +459,8 @@ ML models require ~2-4GB RAM. Adjust Docker resource limits if needed.
 - Use HTTPS with SSL certificates (Let's Encrypt recommended)
 - Implement rate limiting for API endpoints
 - Validate and sanitize all user inputs
-- Store OpenAI API key securely (use Azure Key Vault in production)
 - Configure firewall rules to restrict access
+- No API keys required - all models run locally
 
 ## License
 
@@ -480,4 +482,4 @@ For issues and questions:
 
 ---
 
-Built with FastAPI, React, PostgreSQL, OpenAI Whisper, and Hugging Face Transformers
+Built with FastAPI, React, PostgreSQL, Whisper.cpp (local), and Hugging Face Transformers

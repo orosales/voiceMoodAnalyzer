@@ -6,33 +6,13 @@ Get VoiceMoodAnalyzer running in 5 minutes!
 
 - [ ] Docker installed
 - [ ] Docker Compose installed
-- [ ] OpenAI API key (get one at https://platform.openai.com/api-keys)
-- [ ] 10GB free disk space
+- [ ] ~~OpenAI API key~~ **NO LONGER REQUIRED** - using local whisper.cpp
+- [ ] 15GB free disk space (for models ~2.5GB)
 - [ ] 4GB available RAM
 
-## 3-Step Setup
+## 2-Step Setup
 
-### 1. Configure Environment
-
-Open `.env` and add your OpenAI API key:
-
-```bash
-nano .env
-```
-
-Find this line:
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-Replace with your actual key:
-```env
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
-```
-
-Save and exit (Ctrl+X, Y, Enter)
-
-### 2. Start Application
+### 1. Start Application (No Configuration Needed!)
 
 ```bash
 # Make start script executable
@@ -42,9 +22,10 @@ chmod +x start.sh
 ./start.sh
 ```
 
-**First-time startup**: Downloads ~2GB of ML models (10-15 minutes)
+**First-time startup**: Downloads ~2.5GB of ML models (10-15 minutes)
+**Note**: All models run locally - no API keys required!
 
-### 3. Access Application
+### 2. Access Application
 
 Open your browser:
 - **Main App**: http://localhost
@@ -56,7 +37,7 @@ Open your browser:
 1. Click "Start Recording"
 2. Say something like "I'm feeling great today!"
 3. Click "Stop Recording"
-4. See your mood analysis
+4. See your mood analysis (recordings ≤15s include audio + text emotion; >15s use text emotion only)
 
 ### Option 2: Upload File
 1. Click "Choose Audio File"
@@ -97,13 +78,8 @@ sudo lsof -i :80
 # Kill the process or change frontend port in docker-compose.yml
 ```
 
-### "OpenAI API key invalid"
-1. Check your .env file
-2. Verify key at https://platform.openai.com/api-keys
-3. Restart containers: `docker-compose restart`
-
 ### "Models downloading slowly"
-- First startup downloads ~2GB
+- First startup downloads ~2.5GB
 - Wait 10-15 minutes
 - Check progress: `docker-compose logs -f backend`
 
@@ -141,15 +117,17 @@ Nginx (Port 80) ← React Frontend
     ↓
 FastAPI (Port 8000)
     ↓
-┌─────────────────────┐
-│ AI Pipeline:        │
-│ 1. Whisper API      │ → Transcribe audio
-│ 2. HuBERT Model     │ → Detect audio emotion
-│ 3. DistilRoBERTa    │ → Analyze text emotion
-│ 4. Fusion Matrix    │ → Combine results
-└─────────────────────┘
+┌─────────────────────────────┐
+│ AI Pipeline (All Local):    │
+│ 1. Whisper.cpp (tiny model) │ → Transcribe audio
+│ 2. Wav2Vec2 Model (≤15s)    │ → Detect audio emotion
+│ 3. DistilRoBERTa            │ → Analyze text emotion
+│ 4. Fusion Matrix            │ → Combine results
+└─────────────────────────────┘
     ↓
 PostgreSQL (Port 5436)
+
+All models run locally - no API calls!
 ```
 
 ## Support Files Included

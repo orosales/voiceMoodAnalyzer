@@ -7,9 +7,9 @@ A production-ready, cloud-deployable voice emotion analysis system that combines
 ## Key Features
 
 ### AI Pipeline
-1. **Speech-to-Text**: OpenAI Whisper API (cloud)
-2. **Audio Emotion Detection**: Hugging Face HuBERT model (local)
-3. **Text Sentiment Analysis**: Hugging Face DistilRoBERTa (local)
+1. **Speech-to-Text**: Whisper.cpp (local, tiny model, ~466MB) - no API key required
+2. **Audio Emotion Detection**: Hugging Face Wav2Vec2 model (local, 97.5% accuracy) - only for recordings ≤15 seconds
+3. **Text Sentiment Analysis**: Hugging Face DistilRoBERTa (local) - runs for all recordings
 4. **Emotion Fusion**: Custom matrix algorithm combining audio + text signals
 
 ### User Experience
@@ -23,7 +23,7 @@ A production-ready, cloud-deployable voice emotion analysis system that combines
 - **Backend**: Python 3.11 + FastAPI + PostgreSQL
 - **Frontend**: React 18 + TypeScript + Vite + TailwindCSS
 - **Infrastructure**: Docker + Docker Compose + Nginx
-- **AI Models**: OpenAI Whisper, HuBERT, DistilRoBERTa
+- **AI Models**: Whisper.cpp (local), Wav2Vec2, DistilRoBERTa
 - **Database**: PostgreSQL 15 with SQLAlchemy ORM
 
 ## Project Structure
@@ -40,8 +40,8 @@ voice-mood-analyzer/
 │   │   ├── voice_matrix.py     # Fusion matrix table
 │   │   └── voice_analysis.py   # Analysis history table
 │   ├── services/                # Business logic
-│   │   ├── whisper_service.py  # OpenAI Whisper integration
-│   │   ├── audio_emotion.py    # HuBERT emotion detection
+│   │   ├── whisper_local_service.py  # Local whisper.cpp integration
+│   │   ├── audio_emotion.py    # Wav2Vec2 emotion detection (≤15s)
 │   │   ├── text_emotion.py     # DistilRoBERTa sentiment
 │   │   └── fusion_service.py   # Emotion fusion logic
 │   ├── requirements.txt         # Python dependencies
@@ -160,19 +160,23 @@ Health check endpoint.
 
 ## AI Models Used
 
-### 1. OpenAI Whisper (Cloud API)
+### 1. Whisper.cpp (Local)
 - **Purpose**: Speech-to-text transcription
-- **Model**: whisper-1
-- **Accuracy**: Industry-leading transcription
+- **Model**: tiny model (~466MB)
+- **Accuracy**: Fast and accurate transcription (6x realtime speed)
 - **Languages**: 99+ languages supported
-- **Location**: OpenAI Cloud
+- **Location**: Local execution - no API key required
+- **No internet required after initial download**
 
-### 2. HuBERT (Local)
-- **Model**: `superb/hubert-base-superb-er`
+### 2. Wav2Vec2 (Local)
+- **Model**: `r-f/wav2vec-english-speech-emotion-recognition`
 - **Purpose**: Audio emotion recognition
 - **Input**: Raw audio waveform (16kHz)
-- **Output**: Emotion class (neutral, happy, sad, angry)
-- **Size**: ~95MB
+- **Output**: 7 emotions (angry, disgust, fear, happy, neutral, sad, surprise)
+- **Accuracy**: 97.5% on evaluation set
+- **Training**: Fine-tuned on 4,720 samples from SAVEE, RAVDESS, and TESS datasets
+- **Duration Threshold**: Only runs for recordings ≤15 seconds (performance optimization)
+- **Size**: Included in Hugging Face transformers
 - **Provider**: Hugging Face Transformers
 
 ### 3. DistilRoBERTa (Local)
@@ -193,23 +197,25 @@ Health check endpoint.
 
 ### Processing Time
 - Audio upload: < 1 second
-- Whisper transcription: 2-5 seconds (depends on audio length)
-- Audio emotion detection: 1-3 seconds
+- Whisper transcription: 1-3 seconds (local, 6x realtime speed)
+- Audio emotion detection: 1-3 seconds (only for recordings ≤15 seconds)
 - Text emotion detection: < 1 second
-- Total: **5-10 seconds** for typical voice recording
+- Total: **3-7 seconds** for typical short recording (≤15s)
+- Total: **2-4 seconds** for longer recordings (>15s, audio emotion skipped)
 
 ### Resource Requirements
 - **CPU**: 2-4 cores recommended
 - **RAM**: 4GB minimum, 8GB recommended
-- **Disk**: 10GB (includes Docker images + ML models)
-- **Network**: Required for Whisper API calls
+- **Disk**: 15GB (includes Docker images + ML models ~2.5GB)
+- **Network**: Only required for initial model downloads - no API calls during operation
 - **GPU**: Optional, speeds up local model inference
 
 ### Scalability
 - **Concurrent users**: 10-20 (single instance)
-- **Requests/minute**: ~30-60 (limited by Whisper API)
+- **Requests/minute**: ~30-60 (limited by CPU for local inference)
 - **Database**: PostgreSQL scales to millions of records
 - **Horizontal scaling**: Ready for load balancer + multiple backend instances
+- **No external API dependencies** - fully self-contained
 
 ## Deployment Options
 
@@ -318,16 +324,17 @@ docker volume prune
 
 ## Known Limitations
 
-1. **Whisper API Dependency**: Requires internet and OpenAI API key
-2. **Model Download**: First startup requires downloading ~2GB models
-3. **Processing Time**: 5-10 seconds per analysis (Whisper API latency)
-4. **Concurrent Requests**: Limited by server resources and Whisper API rate limits
+1. **Audio Emotion Duration Limit**: Audio emotion detection only runs for recordings ≤15 seconds (performance optimization)
+2. **Model Download**: First startup requires downloading ~2.5GB models (one-time)
+3. **Processing Time**: 3-7 seconds per analysis for short recordings
+4. **Concurrent Requests**: Limited by server CPU resources for local model inference
 5. **Languages**: Text emotion model optimized for English
 6. **Audio Quality**: Better audio = better results
+7. **No internet required** after initial setup - all models run locally
 
 ## Future Enhancements
 
-- [ ] Add local Whisper model option (offline support)
+- [x] ~~Add local Whisper model option (offline support)~~ ✅ **COMPLETED** - Now using whisper.cpp
 - [ ] Support for additional languages
 - [ ] Real-time streaming analysis
 - [ ] Voice activity detection (silence removal)
@@ -346,7 +353,8 @@ MIT License - Free for commercial and personal use
 
 ## Credits
 
-- **OpenAI**: Whisper API
+- **OpenAI**: Whisper model (running locally via whisper.cpp)
+- **Whisper.cpp**: Local Whisper implementation by ggerganov
 - **Hugging Face**: Transformer models and libraries
 - **FastAPI**: Modern Python web framework
 - **React Team**: Frontend library
