@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60 seconds for audio processing
+  timeout: 300000, // 5 minutes for audio processing (handles longer recordings)
 });
 
 export const analyzeVoice = async (audioFile: File): Promise<MoodAnalysisResponse> => {
